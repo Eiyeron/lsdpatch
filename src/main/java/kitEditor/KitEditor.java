@@ -273,8 +273,6 @@ public class KitEditor extends JFrame {
         pack();
 
         setListeners();
-
-
         buildMenus();
     }
 

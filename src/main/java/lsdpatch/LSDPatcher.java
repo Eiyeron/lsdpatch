@@ -38,7 +38,7 @@ public class LSDPatcher {
     }
 
     private LSDPatcher() {
-        KitEditor frame = new KitEditor();
+        MainWindow frame = new MainWindow();
         // Validate frames that have preset sizes
         // Pack frames that have useful preferred size info, e.g. from their layout
         frame.pack();
