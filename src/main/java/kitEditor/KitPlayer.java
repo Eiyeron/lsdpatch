@@ -12,15 +12,17 @@ import java.util.ArrayList;
 
 public class KitPlayer extends JFrame implements KeyListener {
     private byte[] romImage;
-    private final JComboBox<String> comboList = new JComboBox<>();
+    private final JComboBox<String> kitList = new JComboBox<>();
+    private JToggleButton halfSpeedButton = new JToggleButton("Play at half-speed");
     private JButton[] keypad = new JButton[16];
+
     private ArrayList<LSDJKit> kits = new ArrayList<>();
     private LSDJKit currentKit;
 
     private void playSample(int index) {
         Sound sound = new Sound();
         try {
-            sound.play(currentKit.get4BitSamples(index, false));
+            sound.play(currentKit.get4BitSamples(index, halfSpeedButton.isSelected()));
         } catch (LineUnavailableException e) {
             e.printStackTrace();
         }
@@ -40,32 +42,62 @@ public class KitPlayer extends JFrame implements KeyListener {
         }
     }
 
+    private void populateKitSelector() {
+        kitList.removeAllItems();
+
+        for (LSDJKit kit : kits) {
+            kitList.addItem(kit.getName());
+        }
+        kitList.setSelectedIndex(0);
+    }
+
+    private void selectNewKit(int newIndex) {
+        currentKit = kits.get(newIndex);
+        updateButtons();
+    }
+
     public KitPlayer(byte[] romImage) {
         setLayout(new MigLayout());
+        setTitle("Kit Player");
+
+        halfSpeedButton.setFocusable(false);
+        add(halfSpeedButton, "");
+        add(kitList, "grow, span, wrap");
+
+        JPanel keypadPanel = new JPanel();
+        keypadPanel.setLayout(new MigLayout());
         for (int y = 0; y < 4; y++) {
             for (int x = 0; x < 4; ++x) {
                 JButton currentButton = new JButton("---");
                 if (x == 3)
-                    add(currentButton, "sg keypad,wrap");
+                    keypadPanel.add(currentButton, "sg keypad,wrap");
                 else
-                    add(currentButton, "sg keypad");
+                    keypadPanel.add(currentButton, "sg keypad");
 
                 final int indexToPlay = y * 4 + x;
                 currentButton.addActionListener(e -> playSample(indexToPlay));
+                currentButton.setFocusable(false);
                 keypad[y * 4 + x] = currentButton;
             }
         }
+        add(keypadPanel, "grow, span, wrap");
 
         this.romImage = romImage;
         for (int i = 0; i < romImage.length / RomUtilities.BANK_SIZE; ++i) {
-            if (RomUtilities.isPageKit(romImage, i))
-                kits.add(new LSDJKit(romImage, i));
+            if (RomUtilities.isPageKit(romImage, i)) {
+                LSDJKit kit = new LSDJKit(romImage, i);
+                kits.add(kit);
+            }
         }
 
         if (kits.size() > 0) {
             currentKit = kits.get(0);
             updateButtons();
+            populateKitSelector();
         }
+
+        kitList.addItemListener(e -> selectNewKit(kitList.getSelectedIndex()));
+        kitList.setFocusable(false);
 
         addKeyListener(this);
         setFocusable(true);
@@ -75,29 +107,19 @@ public class KitPlayer extends JFrame implements KeyListener {
 
     @Override
     public void keyTyped(KeyEvent key) {
-
     }
 
     @Override
     public void keyPressed(KeyEvent key) {
-        switch (key.getKeyChar()) {
-            case '0':
-                playSample(0);
-                break;
-            case '1':
-                playSample(1);
-                break;
-            case '2':
-                playSample(2);
-                break;
-            case '3':
-                playSample(3);
-                break;
+        char keyChar = key.getKeyChar();
+        if (keyChar >= '0' && keyChar <= '9') {
+            int index = keyChar - '0';
+            if (keypad[index].isEnabled())
+                playSample(keyChar - '0');
         }
     }
 
     @Override
     public void keyReleased(KeyEvent keyEvent) {
-
     }
 }

@@ -11,6 +11,7 @@ public class RomUtilities {
     public static final int PALETTE_SIZE = COLOR_SET_SIZE * NUM_COLOR_SETS;
     public static final int NUM_PALETTES = 6;
     public static final int PALETTE_NAME_SIZE = 5;
+    public static final int KIT_MAX_NUM_SAMPLES = 16;
 
     public static int findPaletteOffset(byte[] romImage) {
         // Finds the palette location by searching for the screen
@@ -183,7 +184,7 @@ public class RomUtilities {
         return romImage[pageStart] == -1 && romImage[pageStart + 1] == -1;
     }
 
-    private static String getKitName(byte[] romImage, int index) {
+    public static String getKitName(byte[] romImage, int index) {
         if (isPageKitEmpty(romImage, index)) {
             return null;
         }
