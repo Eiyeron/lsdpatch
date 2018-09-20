@@ -168,4 +168,31 @@ public class RomUtilities {
         romImage[0x14E] = (byte) ((checksum014E & 0xFF00) >> 8);
         romImage[0x14F] = (byte) (checksum014E & 0x00FF);
     }
+
+    public static boolean isPageKit(byte[] romImage, int index) {
+        int pageStart = index * RomUtilities.BANK_SIZE;
+        assert pageStart < romImage.length;
+
+        return romImage[pageStart] == 0x60 && romImage[pageStart + 1] == 0x40;
+    }
+
+    public static boolean isPageKitEmpty(byte[] romImage, int index) {
+        int pageStart = index * RomUtilities.BANK_SIZE;
+        assert pageStart < romImage.length;
+
+        return romImage[pageStart] == -1 && romImage[pageStart + 1] == -1;
+    }
+
+    private static String getKitName(byte[] romImage, int index) {
+        if (isPageKitEmpty(romImage, index)) {
+            return null;
+        }
+
+        byte buf[] = new byte[6];
+        int offset = index * RomUtilities.BANK_SIZE + 0x52;
+        for (int i = 0; i < 6; i++) {
+            buf[i] = romImage[offset++];
+        }
+        return new String(buf);
+    }
 }

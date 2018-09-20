@@ -1,5 +1,7 @@
 package lsdpatch;
 
+import kitEditor.KitEditor;
+import kitEditor.KitPlayer;
 import net.miginfocom.swing.MigLayout;
 import sun.applet.Main;
 import utils.JFileChooserFactory;
@@ -51,13 +53,19 @@ public class MainWindow extends JFrame {
 
     private void setActionListeners() {
         openRomButton.addActionListener(e -> openRom());
+        kitPlayerButton.addActionListener(e -> openKitPlayer());
+    }
+
+    private void openKitPlayer() {
+        KitPlayer player = new KitPlayer(romImage);
+        player.setVisible(true);
     }
 
     private boolean loadRom(File gbFile) {
         try {
-            byte [] tempRomImage = new byte[RomUtilities.BANK_SIZE * RomUtilities.BANK_COUNT];
+            byte[] tempRomImage = new byte[RomUtilities.BANK_SIZE * RomUtilities.BANK_COUNT];
             RandomAccessFile romFile = new RandomAccessFile(gbFile, "r");
-            romFile.readFully(tempRomImage );
+            romFile.readFully(tempRomImage);
             romFile.close();
             romImage = tempRomImage;
         } catch (Exception e) {
@@ -68,19 +76,18 @@ public class MainWindow extends JFrame {
         return true;
     }
 
-    private void enableAllActions(boolean enabled)
-    {
+    private void enableAllActions(boolean enabled) {
         saveRomButton.setEnabled(enabled);
         kitEditorButton.setEnabled(enabled);
         fontEditorButton.setEnabled(enabled);
         paletteEditorButton.setEnabled(enabled);
+        kitPlayerButton.setEnabled(enabled);
     }
 
     private void setFileStatus(File loadedFile) {
         if (loadedFile == null) {
             romStatus.setText("No ROM loaded.");
-        }
-        else {
+        } else {
             romStatus.setText("ROM loaded : " + loadedFile.getAbsolutePath());
         }
     }
@@ -92,7 +99,7 @@ public class MainWindow extends JFrame {
             File f = chooser.getSelectedFile();
             if (f != null) {
                 JFileChooserFactory.recordNewBaseFolder(f.getParent());
-                if(loadRom(f)) {
+                if (loadRom(f)) {
                     enableAllActions(true);
                     setFileStatus(f);
                 }

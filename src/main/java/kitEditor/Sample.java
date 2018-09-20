@@ -21,7 +21,7 @@ THE SOFTWARE. */
 import java.io.*;
 import javax.swing.*;
 
-class Sample {
+public class Sample {
     private final String name;
     private final byte[] buf;
     private int readPos;
