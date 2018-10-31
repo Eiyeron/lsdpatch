@@ -21,9 +21,11 @@ public class MainWindow extends JFrame {
 
     private JButton kitPlayerButton = new JButton("Kit Player");
 
-
     private JLabel romStatus = new JLabel();
     private byte[] romImage = null;
+
+    private KitEditor kitEditor = null;
+    private KitPlayer kitPlayer = null;
 
     public MainWindow() {
         setTitle("LSDPatcher " + LSDPatcher.getVersion());
@@ -53,12 +55,26 @@ public class MainWindow extends JFrame {
 
     private void setActionListeners() {
         openRomButton.addActionListener(e -> openRom());
+        saveRomButton.addActionListener(e -> saveRom());
+        kitEditorButton.addActionListener(e -> openKitEditor());
         kitPlayerButton.addActionListener(e -> openKitPlayer());
     }
 
+    private void openKitEditor() {
+        if (kitEditor != null) {
+            kitEditor.dispose();
+        }
+        kitEditor = new KitEditor(romImage);
+        kitEditor.setVisible(true);
+    }
+
     private void openKitPlayer() {
-        KitPlayer player = new KitPlayer(romImage);
-        player.setVisible(true);
+        if (kitPlayer != null) {
+            kitPlayer.dispose();
+        }
+
+        kitPlayer = new KitPlayer(romImage);
+        kitPlayer.setVisible(true);
     }
 
     private boolean loadRom(File gbFile) {
@@ -102,7 +118,36 @@ public class MainWindow extends JFrame {
                 if (loadRom(f)) {
                     enableAllActions(true);
                     setFileStatus(f);
+
+                    // TODO : close or reload child windows on load.
+                    if (kitEditor != null) {
+                        openKitEditor();
+                    }
+                    if (kitPlayer != null) {
+                        openKitPlayer();
+                    }
                 }
+            }
+        }
+    }
+
+    private void saveRom() {
+        JFileChooser chooser = JFileChooserFactory.createChooser("Save ROM image", JFileChooserFactory.FileType.Gb, JFileChooserFactory.FileOperation.Save);
+
+        int result = chooser.showSaveDialog(this);
+        if (result == JFileChooser.APPROVE_OPTION) {
+            try {
+                File f = chooser.getSelectedFile();
+                JFileChooserFactory.recordNewBaseFolder(f.getParent());
+
+                RomUtilities.fixChecksum(romImage);
+                RandomAccessFile romFile = new RandomAccessFile(f, "rw");
+                romFile.write(romImage);
+                romFile.close();
+                setTitle(f.getAbsoluteFile().toString() + " - lsdpatch.LSDPatcher Redux v" + LSDPatcher.getVersion());
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(this, e.getMessage(), "File error",
+                        JOptionPane.ERROR_MESSAGE);
             }
         }
     }

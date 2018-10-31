@@ -58,18 +58,13 @@ public class KitEditor extends JFrame {
     private final java.awt.event.ActionListener bankBoxListener =
             e -> bankBox_actionPerformed();
 
-    private RandomAccessFile romFile;
     private int totSampleSize = 0;
 
     private byte[] romImage = null;
 
     private Sample[] samples = new Sample[MAX_SAMPLES];
 
-    private JMenuItem saveROMItem;
     private JMenuItem importKitsItem;
-    private JMenuItem importFontsItem;
-    private JMenuItem importPalettesItem;
-    private JMenuItem importAllItem;
     private final JButton loadKitButton = new JButton();
     private final JButton exportKitButton = new JButton();
     private final JButton exportSampleButton = new JButton();
@@ -80,7 +75,6 @@ public class KitEditor extends JFrame {
     private final JButton saveROMButton = new JButton();
     private final JLabel kitSizeLabel = new JLabel();
     private final SampleCanvas sampleView = new SampleCanvas();
-    private final JSlider ditherSlider = new JSlider();
 
     private final JToggleButton playSpeedToggle = new JToggleButton();
 
@@ -106,7 +100,9 @@ public class KitEditor extends JFrame {
         instrList.setListData(listData);
     }
 
-    public KitEditor() {
+    public KitEditor( byte[] romImage) {
+        this.romImage = romImage;
+
         enableEvents(AWTEvent.WINDOW_EVENT_MASK);
         try {
             jbInit();
@@ -114,9 +110,7 @@ public class KitEditor extends JFrame {
             e.printStackTrace();
         }
 
-        emptyInstrList();
-
-        selectRomToLoad();
+        updateRomView();
     }
 
     private void buildMenus() {
@@ -124,39 +118,12 @@ public class KitEditor extends JFrame {
         fileMenu.setMnemonic(KeyEvent.VK_F);
         menuBar.add(fileMenu);
 
-        JMenuItem menuItem = new JMenuItem("Open ROM...", KeyEvent.VK_O);
-        menuItem.addActionListener(e -> selectRomToLoad());
-        fileMenu.add(menuItem);
-
         fileMenu.addSeparator();
 
         importKitsItem = new JMenuItem("Import kits from ROM...", KeyEvent.VK_I);
-        importKitsItem.setEnabled(false);
         importKitsItem.addActionListener(e3 -> importKits_actionPerformed());
 
         fileMenu.add(importKitsItem);
-
-        importFontsItem = new JMenuItem("Import fonts from ROM...", KeyEvent.VK_I);
-        importFontsItem.setEnabled(false);
-        importFontsItem.addActionListener(e2 -> importFonts_actionPerformed());
-        fileMenu.add(importFontsItem);
-
-        importPalettesItem = new JMenuItem("Import palettes from ROM...", KeyEvent.VK_I);
-        importPalettesItem.setEnabled(false);
-        importPalettesItem.addActionListener(e1 -> importPalettes_actionPerformed());
-        fileMenu.add(importPalettesItem);
-
-        importAllItem = new JMenuItem("Import all from ROM...", KeyEvent.VK_A);
-        importAllItem.setEnabled(false);
-        importAllItem.addActionListener(e1 -> importAll_actionPerformed());
-        fileMenu.add(importAllItem);
-
-        fileMenu.addSeparator();
-
-        saveROMItem = new JMenuItem("Save ROM...", KeyEvent.VK_S);
-        saveROMItem.setEnabled(false);
-        saveROMItem.addActionListener(e -> saveROMButton_actionPerformed());
-        fileMenu.add(saveROMItem);
 
         // -----
 
@@ -202,8 +169,6 @@ public class KitEditor extends JFrame {
 
         addSampleButton.addActionListener(e -> selectSampleToAdd());
         dropSampleButton.addActionListener(e -> dropSample());
-
-        saveROMButton.addActionListener(e -> saveROMButton_actionPerformed());
     }
 
     /**
@@ -211,7 +176,7 @@ public class KitEditor extends JFrame {
      */
     private void jbInit() {
         //setIconImage(Toolkit.getDefaultToolkit().createImage(Frame1.class.getResource("[Your Icon]")));
-        setTitle("lsdpatch.LSDPatcher Redux v" + LSDPatcher.getVersion());
+        setTitle("Kit Editor");
         contentPane = (JPanel) this.getContentPane();
         contentPane.setLayout(new MigLayout("",
                 "[150:60%:,grow][200:40%:,fill,grow]",
@@ -231,27 +196,16 @@ public class KitEditor extends JFrame {
         kitContainer.add(kitSizeLabel, "grow,wrap");
         kitContainer.setMinimumSize(kitContainer.getPreferredSize());
 
-        loadKitButton.setEnabled(false);
         loadKitButton.setText("Load Kit");
-
-        exportKitButton.setEnabled(false);
         exportKitButton.setText("Export Kit");
+        renameKitButton.setText("Rename Kit");
 
         kitTextArea.setBorder(BorderFactory.createEtchedBorder());
 
-        renameKitButton.setEnabled(false);
-        renameKitButton.setText("Rename Kit");
-
-        exportSampleButton.setEnabled(false);
         exportSampleButton.setText("Export Sample");
-
-        addSampleButton.setEnabled(false);
         addSampleButton.setText("Add sample");
-
         dropSampleButton.setText("Drop sample");
-        dropSampleButton.setEnabled(false);
 
-        saveROMButton.setEnabled(false);
         saveROMButton.setText("Save ROM");
 
 
@@ -289,8 +243,6 @@ public class KitEditor extends JFrame {
                         continue;
                     }
                     addSample(file);
-                } else if (fileName.endsWith(".gb")) {
-                    loadRom(file);
                 } else if (fileName.endsWith(".kit")) {
                     if (romImage == null) {
                         JOptionPane.showMessageDialog(contentPane,
@@ -309,16 +261,6 @@ public class KitEditor extends JFrame {
                 }
             }
         });
-    }
-
-    /**
-     * Overridden so we can exit when window is closed
-     */
-    protected void processWindowEvent(WindowEvent e) {
-        super.processWindowEvent(e);
-        if (e.getID() == WindowEvent.WINDOW_CLOSING) {
-            System.exit(0);
-        }
     }
 
     private byte[] get4BitSamples(int index, boolean halfSpeed) {
@@ -368,45 +310,6 @@ public class KitEditor extends JFrame {
             JOptionPane.showMessageDialog(this, e.getMessage(), "Audio error",
                     JOptionPane.INFORMATION_MESSAGE);
             e.printStackTrace();
-        }
-    }
-
-    private void loadRom(File gbFile) {
-        try {
-            romImage = new byte[RomUtilities.BANK_SIZE * RomUtilities.BANK_COUNT];
-            setTitle(gbFile.getAbsoluteFile().toString() + " - lsdpatch.LSDPatcher Redux v" + LSDPatcher.getVersion());
-            romFile = new RandomAccessFile(gbFile, "r");
-            romFile.readFully(romImage);
-            romFile.close();
-            fontEditor.setRomImage(romImage);
-            paletteEditor.setRomImage(romImage);
-            saveROMItem.setEnabled(true);
-            saveROMButton.setEnabled(true);
-            importKitsItem.setEnabled(true);
-            importFontsItem.setEnabled(true);
-            importPalettesItem.setEnabled(true);
-            importAllItem.setEnabled(true);
-            loadKitButton.setEnabled(true);
-            exportKitButton.setEnabled(true);
-            renameKitButton.setEnabled(true);
-            flushWavFiles();
-            updateRomView();
-            bankBox.setSelectedIndex(0);
-        } catch (Exception e) {
-            JOptionPane.showMessageDialog(this, e.getMessage(), "File error",
-                    JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
-    private void selectRomToLoad() {
-        JFileChooser chooser = JFileChooserFactory.createChooser("Load ROM Image", FileType.Gb, FileOperation.Load);
-        int result = chooser.showOpenDialog(this);
-        if (result == JFileChooser.APPROVE_OPTION) {
-            File f = chooser.getSelectedFile();
-            if (f != null) {
-                loadRom(f);
-                JFileChooserFactory.recordNewBaseFolder(f.getParent());
-            }
         }
     }
 
@@ -524,7 +427,6 @@ public class KitEditor extends JFrame {
 
         updateKitSizeLabel();
         addSampleButton.setEnabled(firstFreeSampleSlot() != -1);
-        ditherSlider.setEnabled(false);  // TODO: Should be individual per sample.
     }
 
     private void updateKitSizeLabel() {
@@ -572,82 +474,6 @@ public class KitEditor extends JFrame {
                 samples[sampleIt] = null;
             }
         }
-    }
-
-    private boolean importPalettes(File f) {
-        boolean isOk = false;
-        RandomAccessFile otherOpenRom = null;
-        try {
-            byte[] otherRomImage = new byte[RomUtilities.BANK_SIZE * RomUtilities.BANK_COUNT];
-            otherOpenRom = new RandomAccessFile(f, "r");
-
-            otherOpenRom.readFully(otherRomImage);
-            otherOpenRom.close();
-
-            int ownPaletteOffset = RomUtilities.findPaletteOffset(romImage);
-            int ownPaletteNameOffset = RomUtilities.findPaletteNameOffset(romImage);
-
-            int otherPaletteOffset = RomUtilities.findPaletteOffset(otherRomImage);
-            int otherPaletteNameOffset = RomUtilities.findPaletteNameOffset(otherRomImage);
-
-            System.arraycopy(otherRomImage, otherPaletteOffset, romImage, ownPaletteOffset, RomUtilities.PALETTE_SIZE * RomUtilities.NUM_PALETTES);
-
-            System.arraycopy(otherRomImage, otherPaletteNameOffset, romImage, ownPaletteNameOffset, RomUtilities.PALETTE_NAME_SIZE * RomUtilities.NUM_PALETTES);
-
-            paletteEditor.setRomImage(romImage);
-
-            isOk = true;
-        } catch (Exception e) {
-            JOptionPane.showMessageDialog(this, e.getMessage(), "File error",
-                    JOptionPane.ERROR_MESSAGE);
-        } finally {
-            if (otherOpenRom != null) {
-                try {
-                    otherOpenRom.close();
-                } catch (IOException e) {
-                    JOptionPane.showMessageDialog(this, e.getMessage(), "File error (wth)",
-                            JOptionPane.ERROR_MESSAGE);
-                }
-            }
-        }
-        return isOk;
-    }
-
-    private boolean importFonts(File f) {
-        boolean isOk = false;
-        RandomAccessFile otherOpenRom = null;
-        try {
-            byte[] otherRomImage = new byte[RomUtilities.BANK_SIZE * RomUtilities.BANK_COUNT];
-            otherOpenRom = new RandomAccessFile(f, "r");
-
-            otherOpenRom.readFully(otherRomImage);
-            otherOpenRom.close();
-
-            int ownFontOffset = RomUtilities.findFontOffset(romImage);
-            int otherFontOffset = RomUtilities.findFontOffset(otherRomImage);
-
-            System.arraycopy(otherRomImage, otherFontOffset, romImage, ownFontOffset, LSDJFont.FONT_SIZE * LSDJFont.FONT_COUNT);
-
-            for (int i = 0; i < LSDJFont.FONT_COUNT; ++i) {
-                RomUtilities.setFontName(romImage, i, RomUtilities.getFontName(otherRomImage, i));
-            }
-
-            fontEditor.setRomImage(romImage);
-            isOk = true;
-        } catch (Exception e) {
-            JOptionPane.showMessageDialog(this, e.getMessage(), "File error",
-                    JOptionPane.ERROR_MESSAGE);
-        } finally {
-            if (otherOpenRom != null) {
-                try {
-                    otherOpenRom.close();
-                } catch (IOException e) {
-                    JOptionPane.showMessageDialog(this, e.getMessage(), "File error (wth)",
-                            JOptionPane.ERROR_MESSAGE);
-                }
-            }
-        }
-        return isOk;
     }
 
     @SuppressWarnings("ResultOfMethodCallIgnored")
@@ -702,91 +528,6 @@ public class KitEditor extends JFrame {
             JOptionPane.showMessageDialog(this,
                     "Imported " + amountOfCopiedKits + " kits!",
                     "Kit import result.", JOptionPane.INFORMATION_MESSAGE);
-        }
-    }
-
-    private void importFonts_actionPerformed() {
-        File f = importRomSelect();
-        if (f != null) {
-            if (importFonts(f)) {
-                JOptionPane.showMessageDialog(this,
-                        "Font copied!",
-                        "Font import result.", JOptionPane.INFORMATION_MESSAGE);
-            } else {
-                JOptionPane.showMessageDialog(this,
-                        "Font copy error.",
-                        "Font import result.", JOptionPane.INFORMATION_MESSAGE);
-            }
-        }
-
-    }
-
-    private void importPalettes_actionPerformed() {
-        File f = importRomSelect();
-        if (f != null) {
-            if (importPalettes(f)) {
-                JOptionPane.showMessageDialog(this,
-                        "Palettes copied!",
-                        "Palette import result.", JOptionPane.INFORMATION_MESSAGE);
-            } else {
-                JOptionPane.showMessageDialog(this,
-                        "Palette copy error.",
-                        "Palette import result.", JOptionPane.INFORMATION_MESSAGE);
-            }
-        }
-    }
-
-
-    private void importAll_actionPerformed() {
-        File f = importRomSelect();
-        boolean isOk = true;
-        if (f != null) {
-            // TODO : factorize message dialogs.
-            if (importKits(f) == 0) {
-                JOptionPane.showMessageDialog(this,
-                        "Palette copy error.",
-                        "Palette import result.", JOptionPane.INFORMATION_MESSAGE);
-                isOk = false;
-            }
-            if (!importFonts(f)) {
-                JOptionPane.showMessageDialog(this,
-                        "Font copy error.",
-                        "Font import result.", JOptionPane.INFORMATION_MESSAGE);
-                isOk = false;
-            }
-            if (!importPalettes(f)) {
-                JOptionPane.showMessageDialog(this,
-                        "Palette copy error.",
-                        "Palette import result.", JOptionPane.INFORMATION_MESSAGE);
-                isOk = false;
-            }
-        }
-
-        if (isOk) {
-            JOptionPane.showMessageDialog(this,
-                    "Everything copied!",
-                    "All import result.", JOptionPane.INFORMATION_MESSAGE);
-        }
-    }
-
-    private void saveROMButton_actionPerformed() {
-        JFileChooser chooser = JFileChooserFactory.createChooser("Save ROM image", FileType.Gb, FileOperation.Save);
-
-        int result = chooser.showSaveDialog(this);
-        if (result == JFileChooser.APPROVE_OPTION) {
-            try {
-                File f = chooser.getSelectedFile();
-                JFileChooserFactory.recordNewBaseFolder(f.getParent());
-
-                RomUtilities.fixChecksum(romImage);
-                romFile = new RandomAccessFile(f, "rw");
-                romFile.write(romImage);
-                romFile.close();
-                setTitle(f.getAbsoluteFile().toString() + " - lsdpatch.LSDPatcher Redux v" + LSDPatcher.getVersion());
-            } catch (Exception e) {
-                JOptionPane.showMessageDialog(this, e.getMessage(), "File error",
-                        JOptionPane.ERROR_MESSAGE);
-            }
         }
     }
 
@@ -962,7 +703,8 @@ public class KitEditor extends JFrame {
             return;
         }
         kitSizeLabel.setText(Integer.toHexString(totSampleSize) + " bytes written");
-        sbc.DITHER_VAL = ditherSlider.getValue();
+        // TODO : reimplement dither.
+        sbc.DITHER_VAL = 0;
 
         byte newSamples[] = new byte[RomUtilities.BANK_SIZE];
         int lengths[] = new int[15];
