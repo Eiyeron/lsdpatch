@@ -1,5 +1,6 @@
 package lsdpatch;
 
+import com.sun.xml.internal.ws.wsdl.writer.document.Import;
 import kitEditor.KitEditor;
 import kitEditor.KitPlayer;
 import net.miginfocom.swing.MigLayout;
@@ -14,6 +15,7 @@ import java.io.RandomAccessFile;
 public class MainWindow extends JFrame {
     private final JButton openRomButton = new JButton("Open ROM", UIManager.getIcon("FileView.directoryIcon"));
     private JButton saveRomButton = new JButton("Save ROM", UIManager.getIcon("FileView.floppyDriveIcon"));
+    private JButton importFromButton = new JButton("Import...", UIManager.getIcon("FileChooser.upFolderIcon"));
 
     private JButton kitEditorButton = new JButton("Kit Editor");
     private JButton paletteEditorButton = new JButton("Palette Editor");
@@ -22,10 +24,12 @@ public class MainWindow extends JFrame {
     private JButton kitPlayerButton = new JButton("Kit Player");
 
     private JLabel romStatus = new JLabel();
+    private String loadedFilePath = null;
     private byte[] romImage = null;
 
     private KitEditor kitEditor = null;
     private KitPlayer kitPlayer = null;
+    private ImportDialog importDialog = null;
 
     public MainWindow() {
         setTitle("LSDPatcher " + LSDPatcher.getVersion());
@@ -33,8 +37,9 @@ public class MainWindow extends JFrame {
 
         romStatus.setBorder(BorderFactory.createLoweredSoftBevelBorder());
 
-        add(openRomButton, "sg icon,split 2, span,grow x");
-        add(saveRomButton, "sg icon, wrap, grow x");
+        add(openRomButton, "sg icon,split 3, span,grow x");
+        add(saveRomButton, "sg icon, grow x");
+        add(importFromButton, "sg icon, wrap, grow x");
         add(new JSeparator(), "span,grow x,wrap");
 
         add(kitEditorButton, "center");
@@ -56,8 +61,17 @@ public class MainWindow extends JFrame {
     private void setActionListeners() {
         openRomButton.addActionListener(e -> openRom());
         saveRomButton.addActionListener(e -> saveRom());
+        importFromButton.addActionListener(e -> importDialog());
         kitEditorButton.addActionListener(e -> openKitEditor());
         kitPlayerButton.addActionListener(e -> openKitPlayer());
+    }
+
+    private void importDialog() {
+        if (importDialog != null) {
+            importDialog.dispose();
+        }
+        importDialog = new ImportDialog(romImage, loadedFilePath);
+        importDialog.setVisible(true);
     }
 
     private void openKitEditor() {
@@ -94,6 +108,7 @@ public class MainWindow extends JFrame {
 
     private void enableAllActions(boolean enabled) {
         saveRomButton.setEnabled(enabled);
+        importFromButton.setEnabled(enabled);
         kitEditorButton.setEnabled(enabled);
         fontEditorButton.setEnabled(enabled);
         paletteEditorButton.setEnabled(enabled);
@@ -105,6 +120,7 @@ public class MainWindow extends JFrame {
             romStatus.setText("No ROM loaded.");
         } else {
             romStatus.setText("ROM loaded : " + loadedFile.getAbsolutePath());
+            loadedFilePath = loadedFile.getAbsolutePath();
         }
     }
 

@@ -19,10 +19,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE. */
 
 import fontEditor.FontEditor;
-import lsdpatch.LSDPatcher;
 import net.miginfocom.swing.MigLayout;
 import paletteEditor.PaletteEditor;
-import structures.LSDJFont;
 import utils.FileDrop;
 import utils.JFileChooserFactory;
 import utils.JFileChooserFactory.FileOperation;
@@ -36,10 +34,8 @@ import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.awt.event.WindowEvent;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.IOException;
 import java.io.RandomAccessFile;
 
 public class KitEditor extends JFrame {
@@ -118,28 +114,10 @@ public class KitEditor extends JFrame {
         fileMenu.setMnemonic(KeyEvent.VK_F);
         menuBar.add(fileMenu);
 
-        fileMenu.addSeparator();
-
         importKitsItem = new JMenuItem("Import kits from ROM...", KeyEvent.VK_I);
         importKitsItem.addActionListener(e3 -> importKits_actionPerformed());
 
         fileMenu.add(importKitsItem);
-
-        // -----
-
-        JMenu paletteMenu = new JMenu("Palette");
-        paletteMenu.setMnemonic(KeyEvent.VK_P);
-        menuBar.add(paletteMenu);
-        JMenuItem editPaletteItem = new JMenuItem("Edit Palettes...", KeyEvent.VK_P);
-        editPaletteItem.addActionListener(e -> paletteEditor.setVisible(true));
-        paletteMenu.add(editPaletteItem);
-
-        JMenu fontMenu = new JMenu("Font");
-        fontMenu.setMnemonic(KeyEvent.VK_O);
-        menuBar.add(fontMenu);
-        JMenuItem editFontItem = new JMenuItem("Edit Fonts...", KeyEvent.VK_F);
-        editFontItem.addActionListener(e -> fontEditor.setVisible(true));
-        fontMenu.add(editFontItem);
 
         setJMenuBar(menuBar);
     }
@@ -186,6 +164,7 @@ public class KitEditor extends JFrame {
 
 
         instrList.setBorder(BorderFactory.createEtchedBorder());
+        instrList.setMinimumSize(instrList.getPreferredSize());
 
         JPanel kitContainer = new JPanel();
         TitledBorder kitContainerBorder = new TitledBorder(BorderFactory.createEtchedBorder(), "ROM Image");
@@ -208,6 +187,8 @@ public class KitEditor extends JFrame {
 
         saveROMButton.setText("Save ROM");
 
+        sampleView.setMinimumSize(new Dimension(100, 100));
+        sampleView.setPreferredSize(sampleView.getMinimumSize());
 
         contentPane.add(kitContainer, "grow, cell 0 0, spany");
         contentPane.add(loadKitButton, "wrap");
