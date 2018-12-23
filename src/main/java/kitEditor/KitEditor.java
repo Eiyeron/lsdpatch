@@ -107,6 +107,7 @@ public class KitEditor extends JFrame {
         }
 
         updateRomView();
+        createSamplesFromRom();
     }
 
     private void buildMenus() {
