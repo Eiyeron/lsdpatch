@@ -8,22 +8,22 @@ import javax.swing.*;
 import java.io.File;
 import java.io.RandomAccessFile;
 
-public class ImportDialog extends JFrame {
+class ImportDialog extends JFrame {
 
-    final JLabel filePathLabel = new JLabel("No ROM selected.");
-    final JLabel processLabel = new JLabel("Please import a ROM.");
-    final JButton openRomButton = new JButton ("Select");
+    private final JLabel filePathLabel = new JLabel("No ROM selected.");
+    private final JLabel processLabel = new JLabel("Please import a ROM.");
+    private final JButton openRomButton = new JButton ("Select");
 
-    final JCheckBox importKits = new JCheckBox("kits");
-    final JCheckBox importPalettes = new JCheckBox("palettes");
-    final JCheckBox importFonts = new JCheckBox("fonts");
-    final JButton importButton = new JButton("Import!");
+    private final JCheckBox importKits = new JCheckBox("kits");
+    private final JCheckBox importPalettes = new JCheckBox("palettes");
+    private final JCheckBox importFonts = new JCheckBox("fonts");
+    private final JButton importButton = new JButton("Import!");
 
-    byte[] targetRomFile = null;
-    byte[] romImage = null;
+    private byte[] targetRomFile;
+    private byte[] romImage;
 
-    String targetRomPath = null;
-    String targetRomFilename = null;
+    private String targetRomPath;
+    private String targetRomFilename;
 
     private boolean loadRom(File gbFile) {
         try {
@@ -50,17 +50,19 @@ public class ImportDialog extends JFrame {
                 if (loadRom(f)) {
                     filePathLabel.setText(f.getAbsolutePath());
                     StringBuilder processBuilder = new StringBuilder();
+                    processBuilder.append("<html>");
 
                     if (f.getName().equalsIgnoreCase(targetRomFilename)) {
                         processBuilder.append(f.getAbsolutePath());
-                        processBuilder.append("⇨");
+                        processBuilder.append(" ⇨ ");
                         processBuilder.append(targetRomPath);
                     }
                     else {
                         processBuilder.append(f.getName());
-                        processBuilder.append("⇨");
+                        processBuilder.append(" ⇨ ");
                         processBuilder.append(targetRomFilename);
                     }
+                    processBuilder.append("</html>");
                     processLabel.setText(processBuilder.toString());
                     processLabel.setVisible(true);
                     enableImportActions(true);
@@ -69,14 +71,14 @@ public class ImportDialog extends JFrame {
         }
     }
 
-    public void enableImportActions(boolean enabled) {
+    private void enableImportActions(boolean enabled) {
         importFonts.setEnabled(enabled);
         importKits.setEnabled(enabled);
         importPalettes.setEnabled(enabled);
         importButton.setEnabled(enabled);
     }
 
-    public ImportDialog(byte[] targetRomFile, String gbFilePath) {
+    ImportDialog(byte[] targetRomFile, String gbFilePath) {
 
         this.targetRomFile = targetRomFile;
         targetRomPath = gbFilePath;
@@ -94,7 +96,7 @@ public class ImportDialog extends JFrame {
 
         setLayout(new MigLayout("fill"));
 
-        add(comboButton, "grow x, wrap");
+        add(comboButton, "growx, wrap");
         add(importFonts, "growx, wrap");
         add(importKits, "growx, wrap");
         add(importPalettes, "growx, wrap");
