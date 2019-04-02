@@ -1,29 +1,38 @@
 package lsdpatch;
 
-import com.sun.xml.internal.ws.wsdl.writer.document.Import;
 import kitEditor.KitEditor;
 import kitEditor.KitPlayer;
 import net.miginfocom.swing.MigLayout;
-import sun.applet.Main;
+import utils.GlobalHolder;
 import utils.JFileChooserFactory;
 import utils.RomUtilities;
 
 import javax.swing.*;
+import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.File;
 import java.io.RandomAccessFile;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Optional;
+import java.util.PriorityQueue;
+import java.util.prefs.Preferences;
 
-public class MainWindow extends JFrame {
+class MainWindow extends JFrame {
     private final JButton openRomButton = new JButton("Open ROM", UIManager.getIcon("FileView.directoryIcon"));
-    private JButton saveRomButton = new JButton("Save ROM", UIManager.getIcon("FileView.floppyDriveIcon"));
-    private JButton importFromButton = new JButton("Import...", UIManager.getIcon("FileChooser.upFolderIcon"));
+    private final JButton saveRomButton = new JButton("Save ROM", UIManager.getIcon("FileView.floppyDriveIcon"));
+    private final JButton importFromButton = new JButton("Import...", UIManager.getIcon("FileChooser.upFolderIcon"));
 
-    private JButton kitEditorButton = new JButton("Kit Editor");
-    private JButton paletteEditorButton = new JButton("Palette Editor");
-    private JButton fontEditorButton = new JButton("Font Editor");
+    private final JButton kitEditorButton = new JButton("Kit Editor");
+    private final JButton paletteEditorButton = new JButton("Palette Editor");
+    private final JButton fontEditorButton = new JButton("Font Editor");
 
-    private JButton kitPlayerButton = new JButton("Kit Player");
+    private final JButton kitPlayerButton = new JButton("Kit Player");
 
-    private JLabel romStatus = new JLabel();
+    private final JLabel romStatus = new JLabel();
+
+    private final JPanel recentFiles = new JPanel();
     private String loadedFilePath = null;
     private byte[] romImage = null;
 
@@ -31,9 +40,63 @@ public class MainWindow extends JFrame {
     private KitPlayer kitPlayer = null;
     private ImportDialog importDialog = null;
 
-    public MainWindow() {
+    private class Hyperlink extends JLabel {
+        Hyperlink(String text) {
+            setText("<html><a href=\"#\">"+text+"</a></html>");
+            setCursor(new Cursor(Cursor.HAND_CURSOR));
+        }
+    }
+
+    private void resetFilePanel() {
+        recentFiles.removeAll();
+        String recentFilesLoaded = GlobalHolder.get(Preferences.class).get("recentFiles", "");
+        String[] recentFileList = recentFilesLoaded.split("@@");
+        if (recentFileList.length > 1 || !recentFileList[0].equals("")) {
+            for (String path : recentFileList) {
+                Hyperlink romShortcut = new Hyperlink(path);
+                romShortcut.addMouseListener(new MouseAdapter() {
+
+                    @Override
+                    public void mouseClicked(MouseEvent e) {
+                        openRomAction(new File(path));
+                    }
+
+                    @Override
+                    public void mouseEntered(MouseEvent e) {
+                        // the mouse has entered the label
+                    }
+
+                    @Override
+                    public void mouseExited(MouseEvent e) {
+                        // the mouse has exited the label
+                    }
+                });
+                recentFiles.add(romShortcut, "span");
+            }
+        }
+        else {
+            JLabel noRecentFilesLabel = new JLabel("No recent files.");
+            Font italicFont = new Font("Sans", Font.ITALIC, 12);
+            noRecentFilesLabel.setFont(italicFont);
+            recentFiles.add(noRecentFilesLabel, "center, grow y");
+        }
+
+    }
+
+    private void setupRecentFilesPanel() {
+
+        add(new JLabel("Recent Files"), "span, wrap");
+
+        recentFiles.setBorder(BorderFactory.createLoweredSoftBevelBorder());
+        recentFiles.setLayout(new MigLayout("", "[grow]", ""));
+
+        add(recentFiles, "grow, span");
+        resetFilePanel();
+    }
+
+    MainWindow() {
         setTitle("LSDPatcher " + LSDPatcher.getVersion());
-        setLayout(new MigLayout("", "[grow][grow][grow]", "[][][grow][grow][]"));
+        setLayout(new MigLayout("", "[grow][grow][grow]", "[][][grow][grow][][grow][]"));
 
         romStatus.setBorder(BorderFactory.createLoweredSoftBevelBorder());
 
@@ -45,7 +108,10 @@ public class MainWindow extends JFrame {
         add(kitEditorButton, "center");
         add(paletteEditorButton, "center");
         add(fontEditorButton, "center,wrap");
-        add(kitPlayerButton, "center");
+
+        add(kitPlayerButton, "center,wrap");
+
+        setupRecentFilesPanel();
 
         add(romStatus, "south");
         setFileStatus(null);
@@ -124,26 +190,76 @@ public class MainWindow extends JFrame {
         }
     }
 
+
+    private void updateRecentFiles(String newPath) {
+        String absoluteNewPath = new File(newPath).getAbsolutePath();
+
+        String recentFilesLoaded = GlobalHolder.get(Preferences.class).get("recentFiles", "");
+        ArrayList<String> recentFileList = new ArrayList<>(Arrays.asList(recentFilesLoaded.split("@@")));
+        if (recentFileList.size() == 1 && recentFileList.get(0).equals("")) {
+            GlobalHolder.get(Preferences.class).put("recentFiles", absoluteNewPath);
+        }
+
+        // Trim first files not found
+        recentFileList.removeIf(f -> !new File(f).exists());
+
+        Optional<String> path = recentFileList.stream().filter(f -> f.equals(absoluteNewPath)).findFirst();
+        recentFileList.add(0, absoluteNewPath);
+
+
+        ArrayList<String> filtered = new ArrayList<>();
+        filtered.add(recentFileList.get(0));
+        for (int i = 1; i < recentFileList.size(); ++i) {
+            String currentPath = recentFileList.get(i);
+
+            boolean isFoundInFiltered = false;
+            for (String filteredPath : filtered) {
+                if (filteredPath.equals(currentPath)) {
+                    isFoundInFiltered = true;
+                    break;
+                }
+            }
+            if (!isFoundInFiltered) {
+                filtered.add(currentPath);
+            }
+        }
+
+        StringBuilder result = new StringBuilder(filtered.get(0));
+        for (int i = 1; i < filtered.size(); ++i) {
+            result.append("@@").append(filtered.get(i));
+        }
+
+        GlobalHolder.get(Preferences.class).put("recentFiles", result.toString());
+
+
+    }
+
+    private void openRomAction(File f){
+        if (f != null) {
+            JFileChooserFactory.recordNewBaseFolder(f.getParent());
+            if (loadRom(f)) {
+                updateRecentFiles(f.getAbsolutePath());
+                resetFilePanel();
+                enableAllActions(true);
+                setFileStatus(f);
+
+                // TODO : close or reload child windows on load.
+                if (kitEditor != null) {
+                    openKitEditor();
+                }
+                if (kitPlayer != null) {
+                    openKitPlayer();
+                }
+            }
+        }
+    }
+
     private void openRom() {
         JFileChooser chooser = JFileChooserFactory.createChooser("Load ROM Image", JFileChooserFactory.FileType.Gb, JFileChooserFactory.FileOperation.Load);
         int result = chooser.showOpenDialog(this);
         if (result == JFileChooser.APPROVE_OPTION) {
             File f = chooser.getSelectedFile();
-            if (f != null) {
-                JFileChooserFactory.recordNewBaseFolder(f.getParent());
-                if (loadRom(f)) {
-                    enableAllActions(true);
-                    setFileStatus(f);
-
-                    // TODO : close or reload child windows on load.
-                    if (kitEditor != null) {
-                        openKitEditor();
-                    }
-                    if (kitPlayer != null) {
-                        openKitPlayer();
-                    }
-                }
-            }
+            openRomAction(f);
         }
     }
 
