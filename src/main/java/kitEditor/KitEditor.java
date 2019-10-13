@@ -33,15 +33,14 @@ import utils.SampleCanvas;
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
-import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.awt.event.WindowEvent;
+import java.awt.event.*;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.nio.file.Path;
+import java.util.Objects;
+
+import static java.lang.Character.toUpperCase;
 
 public class KitEditor extends JFrame {
     private static final long serialVersionUID = -3993608561466542956L;
@@ -57,7 +56,7 @@ public class KitEditor extends JFrame {
     private static final int MAX_SAMPLES = 15;
 
     private final java.awt.event.ActionListener bankBoxListener =
-            e -> bankBox_actionPerformed();
+            this::bankBox_actionPerformed;
 
     private RandomAccessFile romFile;
     private int totSampleSize = 0;
@@ -75,7 +74,7 @@ public class KitEditor extends JFrame {
     private final JButton exportKitButton = new JButton();
     private final JButton exportSampleButton = new JButton();
     private final JButton exportAllSamplesButton = new JButton();
-    private final JButton renameKitButton = new JButton();
+    private final JButton renameSampleButton = new JButton();
     private final JTextArea kitTextArea = new JTextArea();
     private final JButton addSampleButton = new JButton();
     private final JButton dropSampleButton = new JButton();
@@ -129,6 +128,11 @@ public class KitEditor extends JFrame {
         JMenuItem menuItem = new JMenuItem("Open ROM...", KeyEvent.VK_O);
         menuItem.addActionListener(e -> selectRomToLoad());
         fileMenu.add(menuItem);
+        saveROMItem = new JMenuItem("Save ROM...", KeyEvent.VK_S);
+        saveROMItem.setEnabled(false);
+        saveROMItem.addActionListener(e -> saveROMButton_actionPerformed());
+        fileMenu.add(saveROMItem);
+
 
         fileMenu.addSeparator();
 
@@ -152,14 +156,6 @@ public class KitEditor extends JFrame {
         importAllItem.setEnabled(false);
         importAllItem.addActionListener(e1 -> importAll_actionPerformed());
         fileMenu.add(importAllItem);
-
-        fileMenu.addSeparator();
-
-        saveROMItem = new JMenuItem("Save ROM...", KeyEvent.VK_S);
-        saveROMItem.setEnabled(false);
-        saveROMItem.addActionListener(e -> saveROMButton_actionPerformed());
-        fileMenu.add(saveROMItem);
-
         // -----
 
         JMenu paletteMenu = new JMenu("Palette");
@@ -199,7 +195,7 @@ public class KitEditor extends JFrame {
 
         loadKitButton.addActionListener(e -> loadKitButton_actionPerformed());
         exportKitButton.addActionListener(e -> exportKitButton_actionPerformed());
-        renameKitButton.addActionListener(e1 -> renameKitButton_actionPerformed());
+        renameSampleButton.addActionListener(e1 -> renameKitButton_actionPerformed());
         exportSampleButton.addActionListener(e -> exportSample());
         exportAllSamplesButton.addActionListener(e -> exportAllSamplesFromKit());
 
@@ -229,21 +225,26 @@ public class KitEditor extends JFrame {
         TitledBorder kitContainerBorder = new TitledBorder(BorderFactory.createEtchedBorder(), "ROM Image");
         kitContainer.setBorder(kitContainerBorder);
         kitContainer.setLayout(new MigLayout("", "[grow,fill]", ""));
-        kitContainer.add(bankBox, "grow,wrap");
+        kitContainer.add(bankBox, "grow,split 3");
+        kitContainer.add(loadKitButton, "");
+        kitContainer.add(exportKitButton, "wrap");
+
+        kitContainer.add(new JTextField(), "grow,split 2");
+        kitContainer.add(new JButton("Rename"), "wrap");
         kitContainer.add(instrList, "grow,wrap");
         kitContainer.add(kitSizeLabel, "grow,wrap");
         kitContainer.setMinimumSize(kitContainer.getPreferredSize());
 
         loadKitButton.setEnabled(false);
-        loadKitButton.setText("Load Kit");
+        loadKitButton.setText("Load");
 
         exportKitButton.setEnabled(false);
-        exportKitButton.setText("Export Kit");
+        exportKitButton.setText("Export");
 
         kitTextArea.setBorder(BorderFactory.createEtchedBorder());
 
-        renameKitButton.setEnabled(false);
-        renameKitButton.setText("Rename Kit");
+        renameSampleButton.setEnabled(false);
+        renameSampleButton.setText("Rename Sample");
 
         exportSampleButton.setEnabled(false);
         exportSampleButton.setText("Export Sample");
@@ -262,10 +263,8 @@ public class KitEditor extends JFrame {
 
 
         contentPane.add(kitContainer, "grow, cell 0 0, spany");
-        contentPane.add(loadKitButton, "wrap");
-        contentPane.add(exportKitButton, "wrap");
         contentPane.add(kitTextArea, "grow,split 2");
-        contentPane.add(renameKitButton, "wrap 10");
+        contentPane.add(renameSampleButton, "wrap 10");
 
         contentPane.add(exportSampleButton, "wrap");
         contentPane.add(exportAllSamplesButton, "wrap");
@@ -398,10 +397,11 @@ public class KitEditor extends JFrame {
             loadKitButton.setEnabled(true);
             exportKitButton.setEnabled(true);
             exportAllSamplesButton.setEnabled(true);
-            renameKitButton.setEnabled(true);
+            renameSampleButton.setEnabled(true);
             flushWavFiles();
             updateRomView();
             bankBox.setSelectedIndex(0);
+            bankBox.setEditable(true);
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this, e.getMessage(), "File error",
                     JOptionPane.ERROR_MESSAGE);
@@ -547,16 +547,36 @@ public class KitEditor extends JFrame {
         instrList.setForeground(c);
     }
 
-    private void bankBox_actionPerformed() {
+    private void bankBox_actionPerformed(ActionEvent e) {
         int index = bankBox.getSelectedIndex();
-        if (prevBankBoxIndex == index) {
-            return;
+        if (index >= 0) {
+            // Handle bank switch
+            if (prevBankBoxIndex == index) {
+                return;
+            }
+            // Switched bank.
+            prevBankBoxIndex = index;
+            flushWavFiles();
+            createSamplesFromRom();
+            updateBankView();
         }
-        // Switched bank.
-        prevBankBoxIndex = index;
-        flushWavFiles();
-        createSamplesFromRom();
-        updateBankView();
+        else if ("comboBoxEdited".equals(e.getActionCommand())) {
+            // Handle kit rename
+            int offset = getROMOffsetForSelectedBank() + 0x52;
+            String s = (String)bankBox.getSelectedItem();
+            for (int i = 0; i < 6; i++) {
+                if (i < Objects.requireNonNull(s).length()) {
+                    romImage[offset++] = (byte) toUpperCase(s.charAt(i));
+                } else {
+                    romImage[offset++] = ' ';
+                }
+            }
+            bankBox.setSelectedIndex(prevBankBoxIndex);
+            flushWavFiles();
+            compileKit();
+            updateRomView();
+
+        }
     }
 
     private String getRomSampleName(int index) {
@@ -898,15 +918,23 @@ public class KitEditor extends JFrame {
     }
 
     private void renameKitButton_actionPerformed() {
-        int offset = getROMOffsetForSelectedBank() + 0x52;
+        // TODO: Separate the naming routine from the UI code.
         String s = kitTextArea.getText().toUpperCase();
-        for (int i = 0; i < 6; i++) {
+
+        int offset = getROMOffsetForSelectedBank() + 0x22 +
+                instrList.getSelectedIndex() * 3;
+
+        for (int i = 0; i < 3; ++i) {
             if (i < s.length()) {
-                romImage[offset++] = (byte) s.charAt(i);
+                romImage[offset] = (byte) s.charAt(i);
             } else {
-                romImage[offset++] = ' ';
+                romImage[offset] = '-';
             }
+
+            offset++;
         }
+
+
         compileKit();
         updateRomView();
     }
@@ -1075,8 +1103,10 @@ public class KitEditor extends JFrame {
 
         int index = 0;
         String kitName = (String)bankBox.getSelectedItem();
-        kitName = kitName.substring(kitName.indexOf(' '));
-        if (kitName.length() == 0) {
+        if (kitName != null) {
+            kitName = kitName.substring(kitName.indexOf(' '));
+        }
+        if (kitName == null || kitName.length() == 0) {
             kitName = String.format("Untitled-%02d", bankBox.getSelectedIndex());
         }
         for (Sample s : samples) {
