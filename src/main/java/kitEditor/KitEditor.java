@@ -44,8 +44,6 @@ import static java.lang.Character.toUpperCase;
 public class KitEditor extends JFrame {
     private static final long serialVersionUID = -3993608561466542956L;
     private JPanel contentPane;
-    private final JPanel jPanel1 = new JPanel();
-    //JLabel fileNameLabel = new JLabel();
     private int prevBankBoxIndex = -1;
     private final JComboBox<String> bankBox = new JComboBox<>();
     private final JList<String> instrList = new JList<>();
@@ -87,15 +85,13 @@ public class KitEditor extends JFrame {
 
     private final JMenuBar menuBar = new JMenuBar();
 
-    private final Sound soundPlayer = new Sound();
-
-    class KitFileFilter implements java.io.FilenameFilter {
+    static class KitFileFilter implements java.io.FilenameFilter {
         public boolean accept(java.io.File dir, String name) {
             return name.toLowerCase().endsWith(".kit");
         }
     }
 
-    class WavFileFilter implements java.io.FilenameFilter {
+    static class WavFileFilter implements java.io.FilenameFilter {
         public boolean accept(java.io.File dir, String name) {
             return name.toLowerCase().endsWith(".wav");
         }
