@@ -259,8 +259,8 @@ public class KitEditor extends JFrame {
         saveROMButton.setEnabled(false);
         saveROMButton.setText("Save ROM");
 
-        contentPane.add(new JLabel("Kit Edition"), "growx");
-        contentPane.add(new JLabel("Sample Edition"), "growx,wrap");
+        contentPane.add(new JLabel("Kit Edit"), "growx");
+        contentPane.add(new JLabel("Sample Edit"), "growx,wrap");
 
         contentPane.add(kitContainer, "grow, cell 0 1, spany");
         contentPane.add(addSampleButton, "split 3");
