@@ -21,6 +21,8 @@ public class SampleCanvas extends Canvas {
         double w = g.getClipBounds().getWidth();
         double h = g.getClipBounds().getHeight();
 
+        g.setColor(Color.black);
+        g.fillRect(0, 0, (int)w, (int)h);
         if (buf == null) {
             return;
         }
