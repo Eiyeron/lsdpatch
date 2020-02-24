@@ -37,6 +37,7 @@ import java.awt.event.MouseEvent;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.RandomAccessFile;
+import java.nio.file.Path;
 
 public class KitEditor extends JFrame {
     private static final long serialVersionUID = -3993608561466542956L;
@@ -56,7 +57,7 @@ public class KitEditor extends JFrame {
 
     private int totSampleSize = 0;
 
-    private byte[] romImage = null;
+    private byte[] romImage;
 
     private Sample[] samples = new Sample[MAX_SAMPLES];
 
@@ -64,6 +65,7 @@ public class KitEditor extends JFrame {
     private final JButton loadKitButton = new JButton();
     private final JButton exportKitButton = new JButton();
     private final JButton exportSampleButton = new JButton();
+    private final JButton exportAllSamplesButton = new JButton();
     private final JButton renameKitButton = new JButton();
     private final JTextArea kitTextArea = new JTextArea();
     private final JButton addSampleButton = new JButton();
@@ -72,7 +74,10 @@ public class KitEditor extends JFrame {
     private final JLabel kitSizeLabel = new JLabel();
     private final SampleCanvas sampleView = new SampleCanvas();
 
-    private final JToggleButton playSpeedToggle = new JToggleButton();
+    private final JSlider ditherSlider = new JSlider();
+    private final JSlider volumeSlider = new JSlider();
+
+    private final JCheckBox playSpeedToggle = new JCheckBox("Play half-speed");
 
     private final JMenuBar menuBar = new JMenuBar();
 
@@ -91,7 +96,7 @@ public class KitEditor extends JFrame {
     }
 
     private void emptyInstrList() {
-        String listData[] = {"1.", "2.", "3.", "4.", "5.", "6.", "7.", "8.", "9.", "10.", "11.",
+        String[] listData = {"1.", "2.", "3.", "4.", "5.", "6.", "7.", "8.", "9.", "10.", "11.",
                 "12.", "13.", "14.", "15."};
         instrList.setListData(listData);
     }
@@ -127,7 +132,7 @@ public class KitEditor extends JFrame {
         bankBox.addActionListener(bankBoxListener);
 
         instrList.addMouseListener(new MouseAdapter() {
-            public void mousePressed (MouseEvent e) {
+            public void mousePressed(MouseEvent e) {
                 if (romImage != null) {
                     int index = instrList.locationToIndex(e.getPoint());
 
@@ -145,6 +150,7 @@ public class KitEditor extends JFrame {
         exportKitButton.addActionListener(e -> exportKitButton_actionPerformed());
         renameKitButton.addActionListener(e1 -> renameKitButton_actionPerformed());
         exportSampleButton.addActionListener(e -> exportSample());
+        exportAllSamplesButton.addActionListener(e -> exportAllSamplesFromKit());
 
         addSampleButton.addActionListener(e -> selectSampleToAdd());
         dropSampleButton.addActionListener(e -> dropSample());
@@ -178,11 +184,14 @@ public class KitEditor extends JFrame {
 
         loadKitButton.setText("Load Kit");
         exportKitButton.setText("Export Kit");
+        exportAllSamplesButton.setText("Export all samples");
         renameKitButton.setText("Rename Kit");
 
         kitTextArea.setBorder(BorderFactory.createEtchedBorder());
 
         exportSampleButton.setText("Export Sample");
+
+
         addSampleButton.setText("Add sample");
         dropSampleButton.setText("Drop sample");
 
@@ -198,11 +207,13 @@ public class KitEditor extends JFrame {
         contentPane.add(renameKitButton, "wrap 10");
 
         contentPane.add(exportSampleButton, "wrap");
+        contentPane.add(exportAllSamplesButton, "wrap");
         contentPane.add(addSampleButton, "span 2,wrap");
         contentPane.add(dropSampleButton, "span 2,wrap 10");
         contentPane.add(saveROMButton, "span 2,wrap push");
-        contentPane.add(playSpeedToggle, "growy,split 2");
-        contentPane.add(new JLabel("Play half speed"), "grow, wrap");
+        contentPane.add(playSpeedToggle, "wrap");
+        contentPane.add(new JLabel("Volume"), "split 2");
+        contentPane.add(volumeSlider, "grow, wrap");
         contentPane.add(sampleView, "grow, span 2,wmin 10, hmin 64");
 
         setMinimumSize(getPreferredSize());
@@ -285,7 +296,7 @@ public class KitEditor extends JFrame {
             return;
         }
         try {
-            soundPlayer.play(nibblesForPlayback);
+            Sound.play(nibblesForPlayback, volumeSlider.getValue()/100.f);
             sampleView.setBufferContent(nibblesForRepaint);
             sampleView.repaint();
         } catch (Exception e) {
@@ -314,7 +325,7 @@ public class KitEditor extends JFrame {
             return "Empty";
         }
 
-        byte buf[] = new byte[6];
+        byte[] buf = new byte[6];
         int offset = (a_bank) * RomUtilities.BANK_SIZE + 0x52;
         for (int i = 0; i < 6; i++) {
             buf[i] = romImage[offset++];
@@ -373,8 +384,8 @@ public class KitEditor extends JFrame {
             return;
         }
 
-        byte buf[] = new byte[3];
-        String s[] = new String[15];
+        byte[] buf = new byte[3];
+        String[] s = new String[15];
 
         totSampleSize = 0;
 
@@ -522,7 +533,7 @@ public class KitEditor extends JFrame {
             try {
                 File f = chooser.getSelectedFile();
                 JFileChooserFactory.recordNewBaseFolder(f.getParent());
-                byte buf[] = new byte[RomUtilities.BANK_SIZE];
+                byte[] buf = new byte[RomUtilities.BANK_SIZE];
                 int offset = getROMOffsetForSelectedBank();
                 RandomAccessFile bankFile = new RandomAccessFile(f, "rw");
 
@@ -542,7 +553,7 @@ public class KitEditor extends JFrame {
 
     private void loadKit(File kitFile) {
         try {
-            byte buf[] = new byte[RomUtilities.BANK_SIZE];
+            byte[] buf = new byte[RomUtilities.BANK_SIZE];
             int offset = getROMOffsetForSelectedBank();
             RandomAccessFile bankFile = new RandomAccessFile(kitFile, "r");
             bankFile.readFully(buf);
@@ -552,6 +563,8 @@ public class KitEditor extends JFrame {
             }
             bankFile.close();
             flushWavFiles();
+            createSamplesFromRom();
+            updateBankView();
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this, e.getMessage(), "File error",
                     JOptionPane.ERROR_MESSAGE);
@@ -649,7 +662,7 @@ public class KitEditor extends JFrame {
         String s = dropExtension(wavFile).toUpperCase();
 
         for (int i = 0; i < 3; ++i) {
-            if (s.length() > 0) {
+            if (i < s.length()) {
                 romImage[offset] = (byte) s.charAt(i);
             } else {
                 romImage[offset] = '-';
@@ -688,8 +701,8 @@ public class KitEditor extends JFrame {
         // TODO : reimplement dither.
         sbc.DITHER_VAL = 0;
 
-        byte newSamples[] = new byte[RomUtilities.BANK_SIZE];
-        int lengths[] = new int[15];
+        byte[] newSamples = new byte[RomUtilities.BANK_SIZE];
+        int[] lengths = new int[15];
         sbc.handle(newSamples, samples, lengths);
 
         // Checks if at least one sample has been added.
@@ -766,6 +779,48 @@ public class KitEditor extends JFrame {
         compileKit();
         updateBankView();
     }
+
+    // TODO : put this in a factory eventually
+    private String selectAFolder() {
+
+        JFileChooser chooser = new JFileChooser();
+
+        chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        chooser.setAcceptAllFileFilterUsed(false);
+
+        int returnVal = chooser.showOpenDialog(this);
+
+        if (returnVal == JFileChooser.APPROVE_OPTION) {
+            return chooser.getSelectedFile().toString();
+        }
+        return null;
+    }
+
+    // TODO : Overwritng warning
+    private void exportAllSamplesFromKit() {
+        String directory = selectAFolder();
+
+        int index = 0;
+        String kitName = (String)bankBox.getSelectedItem();
+        kitName = kitName.substring(kitName.indexOf(' '));
+        if (kitName.length() == 0) {
+            kitName = String.format("Untitled-%02d", bankBox.getSelectedIndex());
+        }
+        for (Sample s : samples) {
+            if (s == null || s.length() == 0) {
+                continue;
+            }
+
+            String name = s.getName();
+            if (name.length() == 0) {
+                name = "[untitled]";
+            }
+            File exportedFile = new File(directory, String.format("%s - %02d - %s.wav", kitName, index, name));
+            s.writeToWav(exportedFile);
+            index++;
+        }
+    }
+
 
     private void exportSample() {
         Sample s = samples[instrList.getSelectedIndex()];

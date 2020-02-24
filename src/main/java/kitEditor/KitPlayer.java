@@ -15,6 +15,7 @@ public class KitPlayer extends JFrame implements KeyListener {
     private final JComboBox<String> kitList = new JComboBox<>();
     private JToggleButton halfSpeedButton = new JToggleButton("Play at half-speed");
     private JButton[] keypad = new JButton[16];
+    private final JSlider volumeSlider = new JSlider();
 
     private ArrayList<LSDJKit> kits = new ArrayList<>();
     private LSDJKit currentKit;
@@ -22,7 +23,7 @@ public class KitPlayer extends JFrame implements KeyListener {
     private void playSample(int index) {
         Sound sound = new Sound();
         try {
-            sound.play(currentKit.get4BitSamples(index, halfSpeedButton.isSelected()));
+            sound.play(currentKit.get4BitSamples(index, halfSpeedButton.isSelected()), volumeSlider.getValue()/100.f);
         } catch (LineUnavailableException e) {
             e.printStackTrace();
         }
@@ -61,7 +62,7 @@ public class KitPlayer extends JFrame implements KeyListener {
         setTitle("Kit Player");
 
         halfSpeedButton.setFocusable(false);
-        add(halfSpeedButton, "");
+        add(halfSpeedButton, "split 2");
         add(kitList, "grow, span, wrap");
 
         JPanel keypadPanel = new JPanel();
@@ -81,6 +82,8 @@ public class KitPlayer extends JFrame implements KeyListener {
             }
         }
         add(keypadPanel, "grow, span, wrap");
+        add(new JLabel("Volume"), "split 2");
+        add(volumeSlider, "grow, span");
 
         this.romImage = romImage;
         for (int i = 0; i < romImage.length / RomUtilities.BANK_SIZE; ++i) {

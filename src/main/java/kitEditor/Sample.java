@@ -73,7 +73,7 @@ public class Sample {
     // ------------------
 
     @SuppressWarnings("ResultOfMethodCallIgnored")
-    public static Sample createFromWav(File file) {
+    static Sample createFromWav(File file) {
         int ch = 0;
         long sampleRate = 0;
         int bits = 0;
@@ -299,7 +299,7 @@ public class Sample {
             wavFile.write(unsigned);
             wavFile.close();
         } catch (Exception e) {
-            JOptionPane.showMessageDialog(null, e.getMessage(), "File error",
+            JOptionPane.showMessageDialog(null, e.getMessage(), "File error : " +e.getCause(),
                     JOptionPane.ERROR_MESSAGE);
         }
     }

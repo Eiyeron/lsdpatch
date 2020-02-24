@@ -19,10 +19,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE. */
 
 import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.Toolkit;
+import java.awt.font.TextAttribute;
+import java.util.HashMap;
 import java.util.prefs.Preferences;
 
-import javax.swing.UIManager;
+import javax.swing.*;
 
 import kitEditor.KitEditor;
 import utils.CommandLineFunctions;
@@ -73,6 +76,10 @@ public class LSDPatcher {
 
         System.out.println("java -jar LSDJPatcher.jar png2romfnt <romFile> <pngfile> <index> <fontname>");
         System.out.println(" Imports the PNG into the rom with given name.\n");
+
+        System.out.println("java -jar LSDJPatcher.jar clone <inRomFile> <outRomlFile>");
+        System.out.println(" Clones all customizations from a ROM file to another.\n");
+
     }
 
     public static void main(String[] args) {
@@ -81,8 +88,15 @@ public class LSDPatcher {
             return;
         }
         try {
-            System.setProperty("apple.laf.useScreenMenuBar", "true");
+            // Use the system's UI look when applicable
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+            System.setProperty("apple.laf.useScreenMenuBar", "true");
+
+            // Use font anti-aliasing when applicable
+            System.setProperty("awt.useSystemAAFontSettings","on");
+            System.setProperty("swing.aatext", "true");
+            useJLabelFontForMenus();
+
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -91,6 +105,19 @@ public class LSDPatcher {
         prefs.put("path", prefs.get("path", System.getProperty("user.dir")));
 
         LSDPatcher entry = new LSDPatcher();
+    }
+
+    private static void useJLabelFontForMenus() {
+        // On some systems, the default font given to menus is a bit wonky with anti-aliasing. Using the one given
+        // to JLabels will give a better result.
+        Font systemFont = new JLabel().getFont();
+        HashMap<TextAttribute, Object> attributes = new HashMap<>(systemFont.getAttributes());
+        attributes.put(TextAttribute.WEIGHT, TextAttribute.WEIGHT_SEMIBOLD);
+        attributes.put(TextAttribute.SIZE, systemFont.getSize());
+        Font selectedFont = Font.getFont(attributes);
+        UIManager.put("Menu.font", selectedFont);
+        UIManager.put("MenuBar.font", selectedFont);
+        UIManager.put("MenuItem.font", selectedFont);
     }
 
     private static void processArguments(String[] args) {
@@ -106,6 +133,9 @@ public class LSDPatcher {
         } else if (command.compareTo("png2romfnt") == 0 && args.length == 5) {
             // -1 to allow 1-3 range instead of 0-2
             CommandLineFunctions.loadPngToRom(args[1], args[2], Integer.parseInt(args[3]) - 1, args[4]);
+        } else if (command.compareTo("clone") == 0 && args.length == 3) {
+            // -1 to allow 1-3 range instead of 0-2
+            CommandLineFunctions.copyAllCustomizations(args[1], args[2]);
         }
 
         usage();
