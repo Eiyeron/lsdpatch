@@ -47,30 +47,31 @@ class MainWindow extends JFrame {
         }
     }
 
+    private void attachOpenActionToHyperlink(Hyperlink link, String path) {
+        link.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                openRomAction(new File(path));
+            }
+        });
+
+    }
+
     private void resetFilePanel() {
         recentFiles.removeAll();
         String recentFilesLoaded = GlobalHolder.get(Preferences.class).get("recentFiles", "");
         String[] recentFileList = recentFilesLoaded.split("@@");
         if (recentFileList.length > 1 || !recentFileList[0].equals("")) {
             for (String path : recentFileList) {
+
+                // Skipping all missing paths.
+                File testFile = new File(path);
+                if (!testFile.exists()) {
+                    continue;
+                }
+
                 Hyperlink romShortcut = new Hyperlink(path);
-                romShortcut.addMouseListener(new MouseAdapter() {
-
-                    @Override
-                    public void mouseClicked(MouseEvent e) {
-                        openRomAction(new File(path));
-                    }
-
-                    @Override
-                    public void mouseEntered(MouseEvent e) {
-                        // the mouse has entered the label
-                    }
-
-                    @Override
-                    public void mouseExited(MouseEvent e) {
-                        // the mouse has exited the label
-                    }
-                });
+                attachOpenActionToHyperlink(romShortcut, path);
                 recentFiles.add(romShortcut, "span");
             }
         }
