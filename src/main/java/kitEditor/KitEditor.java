@@ -193,11 +193,26 @@ public class KitEditor extends JFrame {
                     int index = instrList.locationToIndex(e.getPoint());
 
                     boolean hasIndex = (index > -1);
+
                     if (hasIndex) {
                         playSample(index);
+                        if (samples[index] != null)
+                        {
+                            Sample currentSample = samples[index];
+                            ditherSlider.setEnabled(currentSample.isDitherable());
+                            if (currentSample.isDitherable())
+                            {
+                                ditherSlider.setValue(currentSample.getDitherAmount());
+                            }
+                            dropSampleButton.setEnabled(hasIndex);
+                            exportSampleButton.setEnabled(hasIndex);
+
+                        }
                     }
-                    dropSampleButton.setEnabled(hasIndex);
-                    exportSampleButton.setEnabled(hasIndex);
+                }
+                else
+                {
+                    ditherSlider.setEnabled(false);
                 }
             }
         });
@@ -213,6 +228,19 @@ public class KitEditor extends JFrame {
         dropSampleButton.addActionListener(e -> dropSample());
 
         saveROMButton.addActionListener(e -> saveROMButton_actionPerformed());
+
+        ditherSlider.addChangeListener((e) -> {
+            if (instrList.getSelectedIndex() < 0)
+            {
+                return;
+            }
+            Sample currentSample = samples[instrList.getSelectedIndex()];
+            if (currentSample != null && currentSample.isDitherable())
+            {
+                currentSample.setDitherAmount(ditherSlider.getValue());
+                refreshSampleRomData(instrList.getSelectedIndex(), currentSample);
+            }
+        });
     }
 
     /**
@@ -238,6 +266,7 @@ public class KitEditor extends JFrame {
         kitContainer.add(bankBox, "grow,wrap");
         kitContainer.add(instrList, "grow,wrap");
         kitContainer.add(kitSizeLabel, "grow,wrap");
+        kitContainer.add(ditherSlider, "grow, wrap");
         kitContainer.setMinimumSize(kitContainer.getPreferredSize());
 
         loadKitButton.setEnabled(false);
@@ -269,6 +298,9 @@ public class KitEditor extends JFrame {
         saveROMButton.setEnabled(false);
         saveROMButton.setText("Save ROM");
 
+        ditherSlider.setEnabled(false);
+        ditherSlider.setMinimum(0);
+        ditherSlider.setMaximum(15);
 
         contentPane.add(kitContainer, "grow, cell 0 0, spany");
         contentPane.add(loadKitButton, "wrap");
@@ -342,7 +374,7 @@ public class KitEditor extends JFrame {
         }
     }
 
-    private byte[] get4BitSamples(int index, boolean halfSpeed) {
+    private byte[] get4BitSamplesFromRom(int index, boolean halfSpeed) {
         int offset = getSelectedROMBank() * RomUtilities.BANK_SIZE + index * 2;
         int start = (0xff & romImage[offset]) | ((0xff & romImage[offset + 1]) << 8);
         int stop = (0xff & romImage[offset + 2]) | ((0xff & romImage[offset + 3]) << 8);
@@ -370,12 +402,13 @@ public class KitEditor extends JFrame {
 
         byte[] nibblesForRepaint;
         byte[] nibblesForPlayback;
+        Sample currentSample = samples[index];
         if (playSpeedToggle.isSelected()) {
-            nibblesForPlayback = get4BitSamples(index, true);
-            nibblesForRepaint = get4BitSamples(index, false);
+            nibblesForPlayback = currentSample.toLSDjFormat(); // TODO slow play
+            nibblesForRepaint = currentSample.toLSDjFormat();
         } else {
-            nibblesForPlayback = get4BitSamples(index, false);
-            nibblesForRepaint = nibblesForPlayback;
+            nibblesForPlayback = currentSample.toLSDjFormat();
+            nibblesForRepaint = currentSample.toLSDjFormat();
 
         }
         if (nibblesForPlayback == null) {
@@ -547,7 +580,16 @@ public class KitEditor extends JFrame {
 
         updateKitSizeLabel();
         addSampleButton.setEnabled(firstFreeSampleSlot() != -1);
-        ditherSlider.setEnabled(false);  // TODO: Should be individual per sample.
+        int currentSelectedIndex = instrList.getSelectedIndex();
+        if (currentSelectedIndex >= 0 && samples[currentSelectedIndex].isDitherable())
+        {
+            ditherSlider.setEnabled(true);  // TODO: Should be individual per sample.
+            ditherSlider.setValue(samples[instrList.getSelectedIndex()].getDitherAmount());
+        }
+        else
+        {
+            ditherSlider.setEnabled(false);
+        }
     }
 
     private void updateKitSizeLabel() {
@@ -586,7 +628,7 @@ public class KitEditor extends JFrame {
             if (samples[sampleIt] != null) {
                 continue;
             }
-            byte[] nibbles = get4BitSamples(sampleIt, false);
+            byte[] nibbles = get4BitSamplesFromRom(sampleIt, false);
 
             if (nibbles != null) {
                 String name = getRomSampleName(sampleIt);
@@ -968,7 +1010,7 @@ public class KitEditor extends JFrame {
             offset++;
         }
 
-        Sample sample = Sample.createFromWav(wavFile);
+        Sample sample = Sample.createFromWav(wavFile, true);
         if (sample == null) {
             return;
         }
@@ -988,6 +1030,24 @@ public class KitEditor extends JFrame {
         }
     }
 
+    private int getSamplePositionOffset(int index) {
+        int dataOffset = getROMOffsetForSelectedBank() + 1;
+
+        if(index == 0) {
+            return 0x60;
+        }
+        return
+            romImage[dataOffset + index * 2] | (romImage[dataOffset + index*2 + 1] << 8);
+    }
+
+    private void refreshSampleRomData(int index, Sample sample) {
+        byte[] sampleData = sample.toLSDjFormat();
+        int offset = getROMOffsetForSelectedBank() + getSamplePositionOffset(index);
+
+        System.arraycopy(sampleData, 0, romImage, offset, sampleData.length);
+    }
+
+
     private void compileKit() {
         updateBankView();
         if (totSampleSize > 0x3fa0) {
@@ -995,7 +1055,6 @@ public class KitEditor extends JFrame {
             return;
         }
         kitSizeLabel.setText(Integer.toHexString(totSampleSize) + " bytes written");
-        sbc.DITHER_VAL = ditherSlider.getValue();
 
         byte[] newSamples = new byte[RomUtilities.BANK_SIZE];
         int[] lengths = new int[15];

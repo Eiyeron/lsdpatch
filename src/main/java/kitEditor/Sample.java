@@ -19,16 +19,25 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE. */
 
 import java.io.*;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
+import java.util.ArrayList;
+import javax.sound.sampled.*;
 import javax.swing.*;
 
 class Sample {
     private final String name;
-    private final byte[] buf;
+    private final float[] buf;
     private int readPos;
+    private int ditherAmount;
+    private boolean ditherable;
 
-    private Sample(byte[] iBuf, String iName) {
+    private Sample(float[] iBuf, String iName, boolean ditherable) {
         buf = iBuf;
         name = iName;
+        ditherAmount = 0;
+        this.ditherable = ditherable;
     }
 
     String getName() {
@@ -43,211 +52,123 @@ class Sample {
         readPos = 0;
     }
 
-    int read() {
-        int val = buf[readPos++];
-        // Converts from signed to unsigned 8-bit.
-        val += 0x80;
-        return val;
+    int getDitherAmount()
+    {
+        return ditherAmount;
+    }
+
+    void setDitherAmount(int newAmount)
+    {
+        if(!ditherable)
+        {
+            return;
+        }
+
+        ditherAmount = newAmount;
+    }
+
+    boolean isDitherable()
+    {
+        return ditherable;
+    }
+
+    float read() {
+        return buf[readPos++];
     }
 
     // ------------------
+    static private float nibbleToFloat(int nibble)
+    {
+        nibble = (nibble + 256)%16;
+        return (float)(nibble)/15.f;
+    }
 
+    // TODO use Javax's Audio API.
     static Sample createFromNibbles(byte[] nibbles, String name) {
-        byte[] buf = new byte[nibbles.length * 2];
+        float[] buf = new float[nibbles.length * 2];
         for (int nibbleIt = 0; nibbleIt < nibbles.length; ++nibbleIt) {
-            buf[2 * nibbleIt] = (byte) (nibbles[nibbleIt] & 0xf0);
-            buf[2 * nibbleIt + 1] = (byte) ((nibbles[nibbleIt] & 0xf) << 4);
+            buf[2 * nibbleIt] = nibbleToFloat((nibbles[nibbleIt] & 0xf0)>>4);
+            buf[2 * nibbleIt + 1] = nibbleToFloat(nibbles[nibbleIt]);
         }
-        for (int bufIt = 0; bufIt < buf.length; ++bufIt) {
-            buf[bufIt] -= 0x80;
-        }
-        return new Sample(buf, name);
+        return new Sample(buf, name, false);
     }
 
     // ------------------
 
-    @SuppressWarnings("ResultOfMethodCallIgnored")
-    static Sample createFromWav(File file) {
-        int ch = 0;
-        long sampleRate = 0;
-        int bits = 0;
-
+    static Sample createFromWav(File file, boolean canDither) {
         try {
-            FileInputStream in = new FileInputStream(file.getAbsolutePath());
+            AudioInputStream inputStream = AudioSystem.getAudioInputStream(file);
+            AudioFormat outputFormat = new AudioFormat(
+                    AudioFormat.Encoding.PCM_FLOAT,
+                    11468,
+                    32,
+                    1,
+                    4,
+                    11468,
+                    true);
+            AudioInputStream outputStream = AudioSystem.getAudioInputStream(outputFormat, inputStream);
 
-            long riffId = readWord(in);
-            if (riffId != 1380533830) {
-                JOptionPane.showMessageDialog(null,
-                        "Missing RIFF id!",
-                        "Format error",
-                        JOptionPane.ERROR_MESSAGE);
+            ByteBuffer byteBuffer = ByteBuffer.allocate((int)inputStream.getFrameLength());
+            outputStream.read(byteBuffer.array());
+            FloatBuffer floatBuffer = byteBuffer.asFloatBuffer();
+            float[] outputBuffer= new float[floatBuffer.limit()];
+            floatBuffer.get(outputBuffer);
+            for (int i = 0; i < outputBuffer.length; i++) {
+                outputBuffer[i] = outputBuffer[i]/2.f + 0.5f;
             }
-
-            readWord(in); //skip file size
-
-            long waveId = readWord(in);
-            if (waveId != 1463899717) {
-                JOptionPane.showMessageDialog(null,
-                        "Missing WAVE id!",
-                        "Format error",
-                        JOptionPane.ERROR_MESSAGE);
-            }
-
-            while (in.available() != 0) {
-                long chunkId = readWord(in);
-                long chunkSize = readEndianWord(in);
-
-                if (chunkId == 0x666D7420) // fmt
-                {
-                    int compression = readEndianShort(in);
-                    if (compression != 1) {
-                        JOptionPane.showMessageDialog(null,
-                                "kitEditor.Sample is compressed. Only PCM .wav files are supported.",
-                                "Format error",
-                                JOptionPane.ERROR_MESSAGE);
-                        return null;
-                    }
-                    ch = readEndianShort(in);
-                    if (ch > 2) {
-                        JOptionPane.showMessageDialog(null,
-                                "Unsupported number of channels!",
-                                "Format error",
-                                JOptionPane.ERROR_MESSAGE);
-                        return null;
-                    }
-                    sampleRate = readEndianWord(in);
-                    readWord(in); //avg. bytes/second
-                    readEndianShort(in);  // Block align.
-                    bits = readEndianShort(in);
-                    if (bits != 16 && bits != 8) {
-                        JOptionPane.showMessageDialog(null,
-                                "Only 8-bit and 16-bit .wav are supported!",
-                                "Format error",
-                                JOptionPane.ERROR_MESSAGE);
-                        return null;
-                    }
-                } else if (chunkId == 0x64617461) // data
-                {
-                    byte[] buf = new byte[(int) chunkSize];
-                    in.read(buf);
-
-                    if (ch == 2) {
-                        int inIt = 0;
-                        int outIt = 0;
-                        while (inIt < chunkSize) {
-                            buf[outIt++] = buf[inIt++];
-                            buf[outIt++] = buf[inIt++];
-                            inIt += 2;
-                        }
-                        chunkSize /= 2;
-                        //noinspection UnusedAssignment
-                        ch = 1;
-                    }
-
-                    if (bits == 16) {
-                        // Convert from signed 16-bit to signed 8-bit
-                        // by simply taking the most significant byte.
-                        int inIt = 1;
-                        int outIt = 0;
-
-                        while (inIt < chunkSize) {
-                            buf[outIt] = buf[inIt];
-                            outIt++;
-                            inIt += 2;
-                        }
-                        chunkSize /= 2;
-                    } else if (bits == 8) {
-                        // Converts unsigned 8-bit to signed 8-bit.
-                        for (int it = 0; it < chunkSize; ++it) {
-                            buf[it] += 128;
-                        }
-                    }
-
-                    int outFreq = 11468;
-                    int outFrames = (int) ((outFreq * chunkSize) / sampleRate);
-
-                    double readPos = 0.0;
-                    double advance = (double) sampleRate / (double) outFreq;
-
-                    byte[] outBuf = new byte[outFrames];
-                    int writePos = 0;
-
-                    while (writePos < outFrames) {
-                        byte val = buf[(int) readPos];
-                        outBuf[writePos++] = val;
-                        readPos += advance;
-                    }
-
-                    return new Sample(outBuf, file.getName());
-                } else {
-                    in.skip(chunkSize);
-                }
-            }
-        } catch (Exception e) {
-            JOptionPane.showMessageDialog(null, e.getMessage(), "File error",
-                    JOptionPane.ERROR_MESSAGE);
+            return new Sample(outputBuffer, file.getName(), canDither);
+        } catch (UnsupportedAudioFileException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
+
         return null;
     }
 
-    @SuppressWarnings("ResultOfMethodCallIgnored")
-    static private long readWord(FileInputStream in) throws IOException {
-        long ret = 0;
-        byte[] word = new byte[4];
-        in.read(word);
-
-        ret += word[0];
-        ret <<= 8;
-
-        ret += word[1];
-        ret <<= 8;
-
-        ret += word[2];
-        ret <<= 8;
-
-        ret += word[3];
-
-        return ret;
-    }
-
-    @SuppressWarnings("ResultOfMethodCallIgnored")
-    static private int readEndianShort(FileInputStream in) throws IOException {
-        int ret = 0;
-        byte[] word = new byte[2];
-        in.read(word);
-
-        ret += signedToUnsigned(word[1]);
-        ret <<= 8;
-        ret += signedToUnsigned(word[0]);
-
-        return ret;
-    }
-
-    static private int signedToUnsigned(byte b) {
-        if (b >= 0) {
-            return b;
+    byte[] to4BitDepthBytes()
+    {
+        byte[] outputBuffer = new byte[length()];
+        for (int i = 0; i < length(); i++) {
+            outputBuffer[i] = (byte)((int)(buf[i]*15.f)<<4);
         }
-        return 0x100 + b;
+        return outputBuffer;
     }
 
-    @SuppressWarnings("ResultOfMethodCallIgnored")
-    static private long readEndianWord(FileInputStream in) throws IOException {
-        long ret = 0;
-        byte[] word = new byte[4];
-        in.read(word);
+    byte[] toLSDjFormat()
+    {
+        int sampleLength = length();
+        // Trims the end of the sample to make it a multiple of 0x10.
+        sampleLength -= sampleLength % 0x10;
+        byte[] outputBuffer = new byte[length()/2];
+        int outputBufferCursor = 0;
 
-        ret += signedToUnsigned(word[3]);
-        ret <<= 8;
+        int addedBytes = 0;
 
-        ret += signedToUnsigned(word[2]);
-        ret <<= 8;
+        int intermediaBuffer[] = new int[32];
+        int outputCounter = 0;
+        for (int i = 0; i < sampleLength; i++) {
+            float frame = buf[i];
+            if (isDitherable()) {
+                float ditherAmount = getDitherAmount()/15.f;
+                frame += Math.random() * ditherAmount - ditherAmount/2.f;
+            }
 
-        ret += signedToUnsigned(word[1]);
-        ret <<= 8;
+            int result = (int)(frame * 15.f);
+            intermediaBuffer[outputCounter] = result;
 
-        ret += signedToUnsigned(word[0]);
+            if (outputCounter == 31) {
+                for (int j = 0; j != 32; j += 2) {
+                    outputBuffer[outputBufferCursor++] = (byte) (intermediaBuffer[j] * 0x10 + intermediaBuffer[j + 1]);
+                }
+                outputCounter = -1;
+                addedBytes += 0x10;
+            }
+            outputCounter++;
+        }
 
-        return ret;
+        return outputBuffer;
+
     }
 
     // ------------------

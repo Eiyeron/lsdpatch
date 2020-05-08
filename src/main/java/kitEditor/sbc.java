@@ -26,8 +26,6 @@ package kitEditor;
 
 class sbc {
 
-    static int DITHER_VAL = 0x8;
-
     //outfile=dst, inSample=8bit unsigned sample 11468 kHz
     public static void handle(byte dst[], Sample samples[], int byteLength[]) {
         int offset = 0x60; //don't overwrite sample bank info!
@@ -37,45 +35,9 @@ class sbc {
                 break;
             }
 
-            sample.seekStart();
-            int sampleLength = sample.length();
-            // Trims the end of the sample to make it a multiple of 0x10.
-            sampleLength -= sampleLength % 0x10;
-
-            int addedBytes = 0;
-
-            int outputBuffer[] = new int[32];
-            int outputCounter = 0;
-            for (int i = 0; i < sampleLength; i++) {
-                outputBuffer[outputCounter] = sample.read();
-//                if (sample.mayDither()) {
-//                    outputBuffer[outputCounter] += Math.random() * DITHER_VAL - DITHER_VAL / 2;
-//                }
-                //outputBuffer[outputCounter]+=outputCounter%2*DITHER_VAL-DITHER_VAL/2;
-                //throw away 4 LSB
-                outputBuffer[outputCounter] /= 16;
-
-                /*
-                //this is to get middle at 7.5 instead of 8.0
-                outputBuffer[outputCounter]*=0xe;
-                outputBuffer[outputCounter]/=0xf;
-                */
-
-                //range check
-                outputBuffer[outputCounter] = Math.min(0xf, outputBuffer[outputCounter]);
-                outputBuffer[outputCounter] = Math.max(0, outputBuffer[outputCounter]);
-
-                if (outputCounter == 31) {
-                    for (int j = 0; j != 32; j += 2) {
-                        dst[offset++] = (byte) (outputBuffer[j] * 0x10 + outputBuffer[j + 1]);
-                    }
-                    outputCounter = -1;
-                    addedBytes += 0x10;
-                }
-                outputCounter++;
-            }
-
-            byteLength[sampleIt] = addedBytes;
+            byte[] convertedData = sample.toLSDjFormat();
+            System.arraycopy(convertedData, 0, dst, offset, convertedData.length);
+            byteLength[sampleIt] = convertedData.length;
         }
     }
 }
