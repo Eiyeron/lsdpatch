@@ -1,4 +1,7 @@
 # LSDPatcher Redux
+## This project is now outdated.
+
+See [the original repository](github.com/jkotlinkski/lsdpatch) to get the latest versions.
 
 A project to clean and remake [LSDPatch][original_repo], originally made by Johan Kotlinski.
 
